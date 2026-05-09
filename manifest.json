@@ -1,0 +1,27 @@
+{
+    "name": "桌面时钟 · 天气",
+    "short_name": "时钟天气",
+    "description": "精美的桌面数字时钟与实时天气信息，自动获取当前位置天气",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0a0e27",
+    "theme_color": "#0a0e27",
+    "orientation": "any",
+    "categories": ["weather", "utilities", "lifestyle"],
+    "lang": "zh-CN",
+    "icons": [
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "maskable"
+        }
+    ],
+    "screenshots": []
+}
