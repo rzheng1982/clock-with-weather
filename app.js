@@ -39,36 +39,32 @@ const state = {
 };
 
 // --- Constants ---
-const WMO_CODES = {
-    0:  { icon: '☀️', text: '晴朗' },
-    1:  { icon: '🌤️', text: '大部晴朗' },
-    2:  { icon: '⛅',  text: '多云' },
-    3:  { icon: '☁️',  text: '阴天' },
-    45: { icon: '🌫️', text: '雾' },
-    48: { icon: '🌫️', text: '雾凇' },
-    51: { icon: '🌦️', text: '小毛毛雨' },
-    53: { icon: '🌦️', text: '毛毛雨' },
-    55: { icon: '🌦️', text: '大毛毛雨' },
-    56: { icon: '🌧️', text: '冻毛毛雨' },
-    57: { icon: '🌧️', text: '冻毛毛雨' },
-    61: { icon: '🌧️', text: '小雨' },
-    63: { icon: '🌧️', text: '中雨' },
-    65: { icon: '🌧️', text: '大雨' },
-    66: { icon: '🌧️', text: '冻雨' },
-    67: { icon: '🌧️', text: '冻雨' },
-    71: { icon: '🌨️', text: '小雪' },
-    73: { icon: '🌨️', text: '中雪' },
-    75: { icon: '❄️',  text: '大雪' },
-    77: { icon: '❄️',  text: '雪粒' },
-    80: { icon: '🌦️', text: '阵雨' },
-    81: { icon: '🌧️', text: '中阵雨' },
-    82: { icon: '🌧️', text: '大阵雨' },
-    85: { icon: '🌨️', text: '阵雪' },
-    86: { icon: '❄️',  text: '大阵雪' },
-    95: { icon: '⛈️', text: '雷暴' },
-    96: { icon: '⛈️', text: '雷暴伴冰雹' },
-    99: { icon: '⛈️', text: '强雷暴伴冰雹' },
+// --- QWeather Configuration ---
+const QWEATHER_KEY = '995725a47cc546f097e1c75a8a46a876';
+const QWEATHER_HOST = 'k64d945tk8.re.qweatherapi.com';
+
+// QWeather icon code → emoji mapping
+const QW_ICON_MAP = {
+    '100': '☀️', '101': '⛅', '102': '🌤️', '103': '🌤️', '104': '☁️',
+    '150': '🌫️', '151': '🌫️', '152': '🌫️', '153': '🌫️',
+    '154': '🌫️', '155': '🌫️',
+    '300': '🌦️', '301': '🌧️', '302': '⛈️', '303': '⛈️', '304': '⛈️',
+    '305': '🌧️', '306': '🌧️', '307': '🌧️', '308': '🌧️', '309': '🌦️',
+    '310': '🌧️', '311': '🌧️', '312': '🌧️', '313': '🌧️',
+    '314': '🌧️', '315': '🌧️', '316': '🌧️', '317': '🌧️', '318': '🌧️',
+    '399': '🌧️',
+    '400': '❄️', '401': '❄️', '402': '❄️', '403': '❄️',
+    '404': '🌨️', '405': '🌨️', '406': '🌨️', '407': '🌨️',
+    '408': '❄️', '409': '❄️', '410': '❄️',
+    '499': '❄️',
+    '500': '🌫️', '501': '🌫️', '502': '🌫️', '503': '🌫️', '504': '🌫️',
+    '507': '🌫️', '508': '🌫️', '509': '🌫️', '510': '🌫️',
+    '511': '🌫️', '512': '🌫️', '513': '🌫️', '514': '🌫️', '515': '🌫️',
 };
+
+function qwIcon(icon, fallback) {
+    return QW_ICON_MAP[icon] || fallback || '🌤️';
+}
 
 const DAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
@@ -81,70 +77,82 @@ const UV_LEVELS = [
 ];
 
 const AQI_LEVELS = [
-    { max: 20,   label: '优', color: '#66bb6a' },
-    { max: 40,   label: '良好', color: '#aed581' },
-    { max: 60,   label: '中等', color: '#ffa726' },
-    { max: 80,   label: '差', color: '#ff7043' },
-    { max: 100,  label: '很差', color: '#ef5350' },
-    { max: Infinity, label: '极差', color: '#b71c1c' },
+    { max: 50,   label: '优', color: '#66bb6a' },
+    { max: 100,  label: '良', color: '#aed581' },
+    { max: 150,  label: '轻度污染', color: '#ffa726' },
+    { max: 200,  label: '中度污染', color: '#ff7043' },
+    { max: 300,  label: '重度污染', color: '#ef5350' },
+    { max: Infinity, label: '严重污染', color: '#b71c1c' },
 ];
 
-const CACHE_KEY = 'clockWeatherCache';
+const CACHE_KEY = 'clockWeatherCache_v2';
 const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 min
 const REFRESH_INTERVAL = 10 * 60 * 1000;
 
-// --- Clock ---
+// --- Clock (smart: only touches DOM on actual value change) ---
+let _prevH = '', _prevM = '', _prevS = '', _prevDate = '';
+
 function updateClock() {
     const now = new Date();
-    const h = now.getHours();
-    const m = now.getMinutes();
-    const s = now.getSeconds();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
 
-    els.hours.textContent   = String(h).padStart(2, '0');
-    els.minutes.textContent = String(m).padStart(2, '0');
-    els.seconds.textContent = String(s).padStart(2, '0');
+    if (h !== _prevH) { els.hours.textContent = h; _prevH = h; }
+    if (m !== _prevM) { els.minutes.textContent = m; _prevM = m; }
+    if (s !== _prevS) { els.seconds.textContent = s; _prevS = s; }
 
-    els.dateDisplay.textContent = now.toLocaleDateString('zh-CN', {
-        year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-    });
+    // Date: only update when day rolls over
+    const dateKey = now.toISOString().slice(0, 10);
+    if (dateKey !== _prevDate) {
+        els.dateDisplay.textContent = now.toLocaleDateString('zh-CN', {
+            year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+        });
+        _prevDate = dateKey;
+    }
 }
 
-setInterval(updateClock, 1000);
 updateClock();
 
-// --- API ---
-async function fetchWeather(lat, lon) {
-    const params = new URLSearchParams({
-        latitude: lat,
-        longitude: lon,
-        current: 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,uv_index',
-        daily: 'temperature_2m_max,temperature_2m_min,weather_code',
-        forecast_days: 7,
-        timezone: 'auto',
-    });
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
-    if (!res.ok) throw new Error(`Weather API ${res.status}`);
+// --- QWeather API ---
+async function qwFetch(path, params = {}) {
+    params.key = QWEATHER_KEY;
+    const qs = new URLSearchParams(params);
+    const res = await fetch(`https://${QWEATHER_HOST}${path}?${qs}`);
+    if (!res.ok) throw new Error(`QWeather ${res.status}`);
     return res.json();
+}
+
+async function fetchWeather(lat, lon) {
+    const loc = `${lon.toFixed(2)},${lat.toFixed(2)}`;
+    const [now, daily] = await Promise.all([
+        qwFetch('/v7/weather/now', { location: loc }),
+        qwFetch('/v7/weather/7d', { location: loc }),
+    ]);
+    // Wrap QWeather responses in a structure the UI functions expect
+    return {
+        current: {
+            temp: now.now.temp,
+            feelsLike: now.now.feelsLike,
+            icon: now.now.icon,
+            text: now.now.text,
+            humidity: now.now.humidity,
+            uvIndex: daily.daily[0]?.uvIndex,
+        },
+        daily: daily.daily,
+    };
 }
 
 async function fetchAQI(lat, lon) {
-    const params = new URLSearchParams({
-        latitude: lat,
-        longitude: lon,
-        current: 'european_aqi',
-    });
-    const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${params}`);
-    if (!res.ok) throw new Error(`AQI API ${res.status}`);
-    return res.json();
+    return qwFetch(`/airquality/v1/current/${lat.toFixed(2)}/${lon.toFixed(2)}`);
 }
 
 async function fetchLocationName(lat, lon) {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=zh`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'ClockWeatherApp/2.0' } });
-    if (!res.ok) throw new Error(`Geocode ${res.status}`);
-    const data = await res.json();
-    const a = data.address || {};
-    return a.city || a.town || a.village || a.county || a.state || `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+    const data = await qwFetch('/geo/v2/city/lookup', {
+        location: `${lon.toFixed(2)},${lat.toFixed(2)}`,
+    });
+    const loc = data.location?.[0];
+    return loc?.name || `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
 }
 
 // --- UI Updates ---
@@ -160,19 +168,18 @@ function updateWeatherUI(data) {
     const c = data.current;
 
     // Temperature
-    els.tempValue.textContent = `${Math.round(c.temperature_2m)}°C`;
-    els.feelsLike.textContent = `体感 ${Math.round(c.apparent_temperature)}°C`;
+    els.tempValue.textContent = `${Math.round(c.temp)}°C`;
+    els.feelsLike.textContent = `体感 ${Math.round(c.feelsLike)}°C`;
     pulseCard(els.tempValue.closest('.weather-card'));
 
     // Condition
-    const w = WMO_CODES[c.weather_code] || WMO_CODES[0];
-    els.conditionIcon.textContent = w.icon;
-    els.conditionText.textContent = w.text;
-    els.humidityText.textContent = `湿度: ${c.relative_humidity_2m}%`;
+    els.conditionIcon.textContent = qwIcon(c.icon, '🌤️');
+    els.conditionText.textContent = c.text;
+    els.humidityText.textContent = `湿度: ${c.humidity}%`;
     pulseCard(els.conditionText.closest('.weather-card'));
 
     // UV Index
-    const uv = c.uv_index;
+    const uv = parseFloat(c.uvIndex) || 0;
     els.uvValue.textContent = uv.toFixed(1);
     const uvInfo = UV_LEVELS.find(l => uv <= l.max);
     els.uvValue.style.color = uvInfo.color;
@@ -183,7 +190,12 @@ function updateWeatherUI(data) {
 }
 
 function updateAQIUI(data) {
-    const aqi = data.current?.european_aqi;
+    // Pick the best available AQI standard: cn-mee (China) > us-epa > qaqi > first
+    const index = data.indexes?.find(i => i.code === 'cn-mee')
+        || data.indexes?.find(i => i.code === 'us-epa')
+        || data.indexes?.find(i => i.code === 'qaqi')
+        || data.indexes?.[0];
+    const aqi = index?.aqi;
     if (aqi == null) {
         els.aqiValue.textContent = '--';
         els.aqiLevel.textContent = '暂无数据';
@@ -200,7 +212,7 @@ function updateAQIUI(data) {
 
 // --- Forecast Rendering ---
 function renderForecast(daily) {
-    if (!daily || !daily.time) return;
+    if (!daily || !daily.length) return;
 
     const container = els.forecastContainer;
     container.innerHTML = '';
@@ -208,12 +220,12 @@ function renderForecast(daily) {
     const today = new Date();
     const todayStr = today.toISOString().slice(0, 10);
 
-    for (let i = 0; i < daily.time.length; i++) {
-        const dateStr = daily.time[i];
+    for (let i = 0; i < daily.length; i++) {
+        const d = daily[i];
+        const dateStr = d.fxDate;
         const date = new Date(dateStr + 'T12:00:00');
         const isToday = dateStr === todayStr;
 
-        // Day name
         let dayName;
         if (isToday) {
             dayName = '今天';
@@ -223,15 +235,15 @@ function renderForecast(daily) {
             dayName = DAY_NAMES[date.getDay()];
         }
 
-        const weather = WMO_CODES[daily.weather_code[i]] || WMO_CODES[0];
-        const high = Math.round(daily.temperature_2m_max[i]);
-        const low  = Math.round(daily.temperature_2m_min[i]);
+        const icon = qwIcon(d.iconDay, '🌤️');
+        const high = Math.round(d.tempMax);
+        const low  = Math.round(d.tempMin);
 
         const card = document.createElement('div');
         card.className = 'forecast-card' + (isToday ? ' today' : '');
         card.innerHTML = `
             <div class="fc-day">${dayName}</div>
-            <div class="fc-icon">${weather.icon}</div>
+            <div class="fc-icon">${icon}</div>
             <div class="fc-temps">
                 <div class="fc-temp-high">${high}°</div>
                 <div class="fc-temp-low">${low}°</div>
@@ -307,6 +319,48 @@ async function fetchAllWeather(lat, lon) {
     }
 }
 
+// --- IP Geolocation Fallback ---
+// 当浏览器 Geolocation API 不可用或失败时使用（如 iOS/HTTP 环境）
+function fetchLocationByIP() {
+    return new Promise((resolve, reject) => {
+        const cb = 'ipcb_' + Date.now();
+        const script = document.createElement('script');
+        script.src = `https://ip-api.com/json/?fields=city,lat,lon&callback=${cb}`;
+        window[cb] = (data) => {
+            cleanup();
+            if (data && data.lat && data.lon) {
+                resolve(data);
+            } else {
+                reject(new Error('IP location: no data'));
+            }
+        };
+        const cleanup = () => {
+            script.remove();
+            delete window[cb];
+        };
+        script.onerror = () => { cleanup(); reject(new Error('IP location: network error')); };
+        document.body.appendChild(script);
+        setTimeout(() => {
+            if (window[cb]) { cleanup(); reject(new Error('IP location: timeout')); }
+        }, 8000);
+    });
+}
+
+async function fallbackToIP() {
+    els.locationText.textContent = '尝试IP定位...';
+    try {
+        const ipData = await fetchLocationByIP();
+        state.lat = ipData.lat;
+        state.lon = ipData.lon;
+        if (ipData.city) els.locationText.textContent = ipData.city;
+        fetchAllWeather(ipData.lat, ipData.lon);
+        return true;
+    } catch (e) {
+        console.warn('IP fallback failed:', e);
+        return false;
+    }
+}
+
 // --- Geolocation ---
 function getLocation() {
     const cached = loadCache();
@@ -324,11 +378,8 @@ function getLocation() {
     }
 
     if (!navigator.geolocation) {
-        els.locationText.textContent = '浏览器不支持定位，使用默认位置';
-        const fallback = { lat: 39.9042, lon: 116.4074 };
-        state.lat = fallback.lat;
-        state.lon = fallback.lon;
-        fetchAllWeather(fallback.lat, fallback.lon);
+        els.locationText.textContent = '浏览器不支持定位';
+        fallbackToIP();
         return;
     }
 
@@ -338,10 +389,13 @@ function getLocation() {
             state.lon = pos.coords.longitude;
             fetchAllWeather(state.lat, state.lon);
         },
-        (err) => {
+        async (err) => {
             console.warn('Geolocation error:', err.message);
+            // iOS Safari over HTTP blocks geolocation — try IP fallback
+            const ipOk = await fallbackToIP();
+            if (ipOk) return;
             if (cached) {
-                els.locationText.textContent = '位置获取失败，使用上次位置';
+                els.locationText.textContent = '定位失败，使用上次位置';
                 return;
             }
             els.locationText.textContent = '定位失败，使用默认位置 (北京)';
@@ -382,10 +436,31 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // --- Init ---
+let _clockTimer, _weatherTimer;
+let _fetching = false;
+
+function _refreshWeather() {
+    if (_fetching || !state.lat || !state.lon) return;
+    _fetching = true;
+    fetchAllWeather(state.lat, state.lon).finally(() => { _fetching = false; });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     getLocation();
     registerSW();
-    setInterval(() => {
-        if (state.lat && state.lon) fetchAllWeather(state.lat, state.lon);
-    }, REFRESH_INTERVAL);
+    _clockTimer = setInterval(updateClock, 1000);
+    _weatherTimer = setInterval(_refreshWeather, REFRESH_INTERVAL);
+});
+
+// Pause all timers when app goes to background (huge battery saving on mobile)
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        clearInterval(_clockTimer);
+        clearInterval(_weatherTimer);
+    } else {
+        updateClock();
+        _clockTimer = setInterval(updateClock, 1000);
+        _refreshWeather();
+        _weatherTimer = setInterval(_refreshWeather, REFRESH_INTERVAL);
+    }
 });

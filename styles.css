@@ -29,7 +29,7 @@ body {
     font-family: var(--font-body);
     background: linear-gradient(135deg, #0c0e2b 0%, #151040 25%, #0d2137 50%, #0a0e27 75%, #100b2b 100%);
     background-size: 400% 400%;
-    animation: bgShift 20s ease-in-out infinite;
+    animation: bgShift 60s ease-in-out infinite;
     color: var(--text-primary);
     min-height: 100vh;
     display: flex;
@@ -91,8 +91,8 @@ body {
     min-height: 88vh;
     padding: 2.5rem 2.5rem 2rem;
     background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(40px);
-    -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-radius: 36px;
     border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow:
@@ -262,8 +262,8 @@ body {
 .weather-card {
     position: relative;
     background: var(--glass-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid var(--glass-border);
     border-radius: 18px;
     padding: 0.85rem 0.75rem;
@@ -406,8 +406,8 @@ body {
     position: relative;
     flex: 1;
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     padding: 0.6rem 0.3rem;
