@@ -92,6 +92,13 @@ const REFRESH_INTERVAL = 10 * 60 * 1000;
 // --- Clock (smart: only touches DOM on actual value change) ---
 let _prevH = '', _prevM = '', _prevS = '', _prevDate = '';
 
+// Local-time date key (YYYY-MM-DD). Using toISOString() here would be wrong:
+// it's UTC-based, so in UTC+ timezones the displayed date wouldn't roll over
+// at local midnight (it would lag until local 8am in UTC+8).
+function localDateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function updateClock() {
     const now = new Date();
     const h = String(now.getHours()).padStart(2, '0');
@@ -103,7 +110,7 @@ function updateClock() {
     if (s !== _prevS) { els.seconds.textContent = s; _prevS = s; }
 
     // Date: only update when day rolls over
-    const dateKey = now.toISOString().slice(0, 10);
+    const dateKey = localDateKey(now);
     if (dateKey !== _prevDate) {
         els.dateDisplay.textContent = now.toLocaleDateString('zh-CN', {
             year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
@@ -120,7 +127,14 @@ async function qwFetch(path, params = {}) {
     const qs = new URLSearchParams(params);
     const res = await fetch(`https://${QWEATHER_HOST}${path}?${qs}`);
     if (!res.ok) throw new Error(`QWeather ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    // QWeather returns business errors (quota exceeded, invalid key, etc.)
+    // with HTTP 200 and a non-"200" code field — check it explicitly,
+    // otherwise downstream code dies with a cryptic TypeError.
+    if (data && data.code !== undefined && String(data.code) !== '200') {
+        throw new Error(`QWeather error: code ${data.code}`);
+    }
+    return data;
 }
 
 async function fetchWeather(lat, lon) {
@@ -218,7 +232,9 @@ function renderForecast(daily) {
     container.innerHTML = '';
 
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    // fxDate is a local date string (YYYY-MM-DD), so compare against a
+    // local-time key, not toISOString() (UTC).
+    const todayStr = localDateKey(today);
 
     for (let i = 0; i < daily.length; i++) {
         const d = daily[i];
@@ -263,12 +279,14 @@ function saveCache(lat, lon, weather, aqi, name) {
     } catch { /* quota */ }
 }
 
-function loadCache() {
+function loadCache(maxAge = CACHE_MAX_AGE) {
     try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (!raw) return null;
         const d = JSON.parse(raw);
-        if (Date.now() - d.ts > CACHE_MAX_AGE) return null;
+        // maxAge === Infinity → accept stale data (used as a last-resort
+        // fallback when the network request failed)
+        if (Number.isFinite(maxAge) && Date.now() - d.ts > maxAge) return null;
         return d;
     } catch { return null; }
 }
@@ -306,8 +324,9 @@ async function fetchAllWeather(lat, lon) {
         saveCache(lat, lon, weather, aqi, name);
     } catch (e) {
         console.error('Weather fetch failed:', e);
-        els.locationText.textContent = '数据获取失败，显示缓存数据';
-        const cached = loadCache();
+        // Fall back to last known data even if the cache has expired —
+        // stale weather beats a blank screen when offline.
+        const cached = loadCache(Infinity);
         if (cached) {
             if (cached.weather) {
                 updateWeatherUI(cached.weather);
@@ -315,6 +334,10 @@ async function fetchAllWeather(lat, lon) {
             }
             if (cached.aqi) updateAQIUI(cached.aqi);
             if (cached.name) els.locationText.textContent = cached.name + ' (缓存)';
+            else els.locationText.textContent = '数据获取失败，显示缓存数据';
+            els.updateTime.textContent = `缓存于 ${new Date(cached.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+            els.locationText.textContent = '数据获取失败，请稍后重试';
         }
     }
 }

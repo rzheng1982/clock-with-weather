@@ -34,16 +34,16 @@
 ```bash
 # Python 3
 cd clock-with-weather
-python -m http.server 8080
+python -m http.server 8099
 ```
 
 ```bash
 # 或者用 Node.js
 cd clock-with-weather
-npx serve .
+npx serve -l 8099 .
 ```
 
-打开浏览器访问 `http://localhost:8080`
+打开浏览器访问 `http://localhost:8099`
 
 ### 方式二：安装到桌面
 
